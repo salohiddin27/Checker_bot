@@ -105,8 +105,10 @@ async def reg_phone(message: types.Message, state: FSMContext):
     user_phone = message.contact.phone_number
 
     conn = sqlite3.connect("ovoz_bot.db")
-    conn.execute("INSERT INTO users (user_id, full_name, phone) VALUES (?, ?, ?)",
-                 (message.from_user.id, data['full_name'], user_phone))
+    conn.execute("""
+            INSERT OR REPLACE INTO users (user_id, full_name, phone, score) 
+            VALUES (?, ?, ?, COALESCE((SELECT score FROM users WHERE user_id = ?), 0))
+        """, (message.from_user.id, data['full_name'], user_phone, message.from_user.id))
     conn.commit()
     conn.close()
 
@@ -206,6 +208,18 @@ async def admin_panel(message: types.Message):
 
     if not users: text = "Hozircha hech kim ro'yxatdan o'tmagan."
     await message.answer(text)
+
+@dp.message(Command("clear_db"))
+async def clear_database(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    conn = sqlite3.connect("ovoz_bot.db")
+    conn.execute("DELETE FROM users")
+    conn.commit()
+    conn.close()
+
+    await message.answer("✅ Ma'lumotlar bazasi to'liq tozalandi!")
 
 
 async def main():

@@ -17,9 +17,9 @@ from aiogram.types import (
 load_dotenv()
 API_TOKEN = os.getenv('BOT_TOKEN')
 
-admin_id = os.getenv('ADMIN_ID')
+admin_id_raw = os.getenv('ADMIN_ID', '')
+ADMIN_IDS = [int(i.strip()) for i in admin_id_raw.split(',') if i.strip()]
 
-ADMIN_ID = admin_id
 OVOZ_BERISH_LINKI = "https://openbudget.uz/boards/initiatives/initiative/53/77c5ee52-c435-4996-9e47-817b79671b70"
 
 
@@ -144,12 +144,16 @@ async def vote_photo(message: types.Message, state: FSMContext):
         [InlineKeyboardButton(text="❌ Rad etish", callback_data=f"no_{message.from_user.id}")]
     ])
 
-    # Adminga yuborish
-    await bot.send_photo(
-        ADMIN_ID, photo_id,
-        caption=f"🔔 Yangi hisobot!\n👤 Kimdan: {message.from_user.full_name}\n📞 Ovoz berilgan raqam: {data['vote_phone']}",
-        reply_markup=markup
-    )
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_photo(
+                chat_id=admin_id,
+                photo=photo_id,
+                caption=f"🔔 Yangi hisobot!\n👤 Kimdan: {message.from_user.full_name}\n📞 Ovoz berilgan raqam: {data['vote_phone']}",
+                reply_markup=markup
+            )
+        except Exception as e:
+            logging.error(f"Adminga ({admin_id}) yuborishda xatolik: {e}")
 
     await message.answer("Hisobotingiz qabul qilindi. Admin tasdiqlashini kuting.", reply_markup=main_menu())
     await state.clear()
@@ -189,7 +193,8 @@ async def my_stats(message: types.Message):
 
 @dp.message(Command("admin"))
 async def admin_panel(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS:
+        return
 
     conn = sqlite3.connect("ovoz_bot.db")
     users = conn.execute("SELECT full_name, score FROM users ORDER BY score DESC").fetchall()
